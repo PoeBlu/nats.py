@@ -12,8 +12,7 @@ class Client:
         print(f"[Received on '{msg.subject}']: {msg.data.decode()}")
 
     async def request_handler(self, msg):
-        print("[Request on '{} {}']: {}".format(msg.subject, msg.reply,
-                                                msg.data.decode()))
+        print(f"[Request on '{msg.subject} {msg.reply}']: {msg.data.decode()}")
         await self.nc.publish(msg.reply, b"I can help!")
 
     async def start(self):
@@ -53,7 +52,7 @@ class Client:
                 response = await nc.request("help", b'help please', 0.500)
                 end_time = datetime.now()
                 print(f"[Response]: {response.data}")
-                print("[Duration]: {}".format(end_time - start_time))
+                print(f"[Duration]: {end_time - start_time}")
 
                 # Make a roundtrip to the server to ensure messages
                 # that sent messages have been processed already.

@@ -25,9 +25,7 @@ class Error(nats.errors.Error):
         self.description = description
 
     def __str__(self):
-        desc = ''
-        if self.description:
-            desc = self.description
+        desc = self.description if self.description else ''
         return f"nats: JetStream.{self.__class__.__name__} {desc}"
 
 
@@ -61,9 +59,8 @@ class APIError(Error):
         code = msg.header[api.StatusHdr]
         if code == api.ServiceUnavailableStatus:
             raise ServiceUnavailableError
-        else:
-            desc = msg.header[api.DescHdr]
-            raise APIError(code=int(code), description=desc)
+        desc = msg.header[api.DescHdr]
+        raise APIError(code=int(code), description=desc)
 
     @classmethod
     def from_error(cls, err):

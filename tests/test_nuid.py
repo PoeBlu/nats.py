@@ -29,7 +29,7 @@ class NUIDTest(unittest.TestCase):
 
     def test_nuid_are_unique(self):
         nuid = NUID()
-        entries = [nuid.next().decode() for i in range(500000)]
+        entries = [nuid.next().decode() for _ in range(500000)]
         counted_entries = Counter(entries)
         repeated = [
             entry for entry, count in counted_entries.items() if count > 1
@@ -38,7 +38,7 @@ class NUIDTest(unittest.TestCase):
 
     def test_nuid_are_very_unique(self):
         nuid = NUID()
-        entries = [nuid.next().decode() for i in range(1000000)]
+        entries = [nuid.next().decode() for _ in range(1000000)]
         counted_entries = Counter(entries)
         repeated = [
             entry for entry, count in counted_entries.items() if count > 1

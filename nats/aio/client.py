@@ -431,7 +431,7 @@ class Client:
                             user_jwt = bytearray(f.readline())
                             break
                 # Remove trailing line break but reusing same memory view.
-                return user_jwt[:len(user_jwt) - 1]
+                return user_jwt[:-1]
 
             self._user_jwt_cb = user_cb
 
@@ -548,13 +548,11 @@ class Client:
         # Relinquish control to allow background tasks to wrap up.
         await asyncio.sleep(0)
 
-        if self._current_server is not None:
-            # In case there is any pending data at this point, flush before disconnecting.
-            if self._pending_data_size > 0:
-                self._io_writer.writelines(self._pending[:])
-                self._pending = []
-                self._pending_data_size = 0
-                await self._io_writer.drain()
+        if self._current_server is not None and self._pending_data_size > 0:
+            self._io_writer.writelines(self._pending[:])
+            self._pending = []
+            self._pending_data_size = 0
+            await self._io_writer.drain()
 
         # Cleanup subscriptions since not reconnecting so no need
         # to replay the subscriptions anymore.
@@ -850,8 +848,7 @@ class Client:
 
         # Wait for the response or give up on timeout.
         try:
-            msg = await asyncio.wait_for(future, timeout)
-            return msg
+            return await asyncio.wait_for(future, timeout)
         except asyncio.TimeoutError:
             # Double check that the token is there already.
             self._resp_map.pop(token.decode())
@@ -927,25 +924,15 @@ class Client:
 
     @property
     def connected_url(self) -> str:
-        if self.is_connected:
-            return self._current_server.uri
-        else:
-            return None
+        return self._current_server.uri if self.is_connected else None
 
     @property
     def servers(self) -> List[str]:
-        servers = []
-        for srv in self._server_pool:
-            servers.append(srv)
-        return servers
+        return list(self._server_pool)
 
     @property
     def discovered_servers(self) -> List[str]:
-        servers = []
-        for srv in self._server_pool:
-            if srv.discovered:
-                servers.append(srv)
-        return servers
+        return [srv for srv in self._server_pool if srv.discovered]
 
     @property
     def max_payload(self) -> int:
@@ -990,10 +977,7 @@ class Client:
 
     @property
     def is_draining(self) -> bool:
-        return (
-            self._status == Client.DRAINING_SUBS
-            or self._status == Client.DRAINING_PUBS
-        )
+        return self._status in [Client.DRAINING_SUBS, Client.DRAINING_PUBS]
 
     @property
     def is_draining_pubs(self) -> bool:
@@ -1068,10 +1052,12 @@ class Client:
 
             now = time.monotonic()
             s = self._server_pool.pop(0)
-            if self.options["max_reconnect_attempts"] > 0:
-                if s.reconnects > self.options["max_reconnect_attempts"]:
-                    # Discard server since already tried to reconnect too many times
-                    continue
+            if (
+                self.options["max_reconnect_attempts"] > 0
+                and s.reconnects > self.options["max_reconnect_attempts"]
+            ):
+                # Discard server since already tried to reconnect too many times
+                continue
 
             # Not yet exceeded max_reconnect_attempts so can still use
             # this server in the future.
@@ -1129,10 +1115,7 @@ class Client:
                 await self._error_cb(err)
                 return
 
-        do_cbs = False
-        if not self.is_connecting:
-            do_cbs = True
-
+        do_cbs = not self.is_connecting
         # FIXME: Some errors such as 'Invalid Subscription'
         # do not cause the server to close the connection.
         # For now we handle similar as other clients and close.
@@ -1287,32 +1270,34 @@ class Client:
             options["headers"] = self._server_info["headers"]
             options["no_responders"] = self._server_info["headers"]
 
-        if "auth_required" in self._server_info:
-            if self._server_info["auth_required"]:
-                if "nonce" in self._server_info and self._signature_cb is not None:
-                    sig = self._signature_cb(self._server_info["nonce"])
-                    options["sig"] = sig.decode()
+        if (
+            "auth_required" in self._server_info
+            and self._server_info["auth_required"]
+        ):
+            if "nonce" in self._server_info and self._signature_cb is not None:
+                sig = self._signature_cb(self._server_info["nonce"])
+                options["sig"] = sig.decode()
 
-                    if self._user_jwt_cb is not None:
-                        jwt = self._user_jwt_cb()
-                        options["jwt"] = jwt.decode()
-                    elif self._public_nkey is not None:
-                        options["nkey"] = self._public_nkey
-                # In case there is no password, then consider handle
-                # sending a token instead.
-                elif self.options["user"] is not None and self.options[
-                        "password"] is not None:
-                    options["user"] = self.options["user"]
-                    options["pass"] = self.options["password"]
-                elif self.options["token"] is not None:
-                    options["auth_token"] = self.options["token"]
-                elif self._current_server.uri.username is not None:
-                    if self._current_server.uri.password is None:
-                        options["auth_token"
-                                ] = self._current_server.uri.username
-                    else:
-                        options["user"] = self._current_server.uri.username
-                        options["pass"] = self._current_server.uri.password
+                if self._user_jwt_cb is not None:
+                    jwt = self._user_jwt_cb()
+                    options["jwt"] = jwt.decode()
+                elif self._public_nkey is not None:
+                    options["nkey"] = self._public_nkey
+            # In case there is no password, then consider handle
+            # sending a token instead.
+            elif self.options["user"] is not None and self.options[
+                    "password"] is not None:
+                options["user"] = self.options["user"]
+                options["pass"] = self.options["password"]
+            elif self.options["token"] is not None:
+                options["auth_token"] = self.options["token"]
+            elif self._current_server.uri.username is not None:
+                if self._current_server.uri.password is None:
+                    options["auth_token"
+                            ] = self._current_server.uri.username
+                else:
+                    options["user"] = self._current_server.uri.username
+                    options["pass"] = self._current_server.uri.password
 
         if self.options["name"] is not None:
             options["name"] = self.options["name"]
@@ -1432,8 +1417,6 @@ class Client:
             if not ctrl_msg and jsi._ordered and msg.reply:
                 did_reset = None
                 tokens = Msg.Metadata._get_metadata_fields(msg.reply)
-                # FIXME: Support JS Domains.
-                sseq = int(tokens[5])
                 dseq = int(tokens[6])
                 if dseq != jsi._dseq:
                     # Pick up from where we last left.
@@ -1441,6 +1424,8 @@ class Client:
                 else:
                     # Update our tracking
                     jsi._dseq = dseq + 1
+                    # FIXME: Support JS Domains.
+                    sseq = int(tokens[5])
                     jsi._sseq = sseq
                 if did_reset:
                     return
@@ -1496,9 +1481,8 @@ class Client:
         if fcReply:
             await self.publish(fcReply)
 
-        if ctrl_msg and not msg.reply and ctrl_msg.startswith("Idle"):
-            if sub._jsi:
-                await sub._jsi.check_for_sequence_mismatch(msg)
+        if ctrl_msg and not msg.reply and ctrl_msg.startswith("Idle") and sub._jsi:
+            await sub._jsi.check_for_sequence_mismatch(msg)
 
     def _build_message(self, subject, reply, data, headers):
         return self.msg_class(
@@ -1521,40 +1505,33 @@ class Client:
         Process INFO lines sent by the server to reconfigure client
         with latest updates from cluster to enable server discovery.
         """
-        if 'connect_urls' in info:
-            if info['connect_urls']:
-                connect_urls = []
-                for connect_url in info['connect_urls']:
-                    scheme = ''
-                    if self._current_server.uri.scheme == 'tls':
-                        scheme = 'tls'
-                    else:
-                        scheme = 'nats'
+        if 'connect_urls' not in info:
+            return
+        if info['connect_urls']:
+            connect_urls = []
+            for connect_url in info['connect_urls']:
+                scheme = ''
+                scheme = 'tls' if self._current_server.uri.scheme == 'tls' else 'nats'
+                uri = urlparse(f"{scheme}://{connect_url}")
+                srv = Srv(uri)
+                srv.discovered = True
 
-                    uri = urlparse(f"{scheme}://{connect_url}")
-                    srv = Srv(uri)
-                    srv.discovered = True
-
-                    # Check whether we should reuse the original hostname.
-                    if 'tls_required' in self._server_info and self._server_info['tls_required'] \
+                # Check whether we should reuse the original hostname.
+                if 'tls_required' in self._server_info and self._server_info['tls_required'] \
                            and self._host_is_ip(uri.hostname):
-                        srv.tls_name = self._current_server.uri.hostname
+                    srv.tls_name = self._current_server.uri.hostname
 
-                    # Filter for any similar server in the server pool already.
-                    should_add = True
-                    for s in self._server_pool:
-                        if uri.netloc == s.uri.netloc:
-                            should_add = False
-                    if should_add:
-                        connect_urls.append(srv)
+                should_add = all(uri.netloc != s.uri.netloc for s in self._server_pool)
+                if should_add:
+                    connect_urls.append(srv)
 
-                if self.options["dont_randomize"] is not True:
-                    shuffle(connect_urls)
-                for srv in connect_urls:
-                    self._server_pool.append(srv)
+            if self.options["dont_randomize"] is not True:
+                shuffle(connect_urls)
+            for srv in connect_urls:
+                self._server_pool.append(srv)
 
-                if not initial_connection and connect_urls and self._discovered_server_cb:
-                    self._discovered_server_cb()
+            if not initial_connection and connect_urls and self._discovered_server_cb:
+                self._discovered_server_cb()
 
     def _host_is_ip(self, connect_url):
         try:
@@ -1725,10 +1702,7 @@ class Client:
         Coroutine which continuously tries to consume pending commands
         and then flushes them to the socket.
         """
-        while True:
-            if not self.is_connected or self.is_connecting:
-                break
-
+        while self.is_connected and not self.is_connecting:
             try:
                 await self._flush_queue.get()
 

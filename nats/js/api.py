@@ -44,21 +44,15 @@ class Base:
     Helper dataclass to filter unknown fields from the API.
     """
     @classmethod
-    def properties(klass, **opts):
+    def properties(cls, **opts):
         return [f.name for f in fields(klass)]
 
     @classmethod
-    def loads(klass, **opts):
-        # Reject unknown properties before loading.
-        # FIXME: Find something more efficient...
-        to_rm = []
-        for e in opts:
-            if e not in klass.properties():
-                to_rm.append(e)
-
+    def loads(cls, **opts):
+        to_rm = [e for e in opts if e not in cls.properties()]
         for m in to_rm:
             del opts[m]
-        return klass(**opts)
+        return cls(**opts)
 
     def asjson(self):
         # Filter and remove any null values since invalid for Go.

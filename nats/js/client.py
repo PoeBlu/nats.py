@@ -380,7 +380,7 @@ class JetStream:
         if not status:
             return True
         # FIXME: Skip any other 4XX errors?
-        if (status == api.NoMsgsStatus or status == api.RequestTimeoutStatus):
+        if status in [api.NoMsgsStatus, api.RequestTimeoutStatus]:
             return False
         else:
             raise nats.js.errors.APIError.from_msg(msg)
@@ -533,10 +533,7 @@ class JetStream:
             """
             consumer_info gets the current info of the consumer from this subscription.
             """
-            info = await self._js._jsm.consumer_info(
-                self._stream, self._consumer
-            )
-            return info
+            return await self._js._jsm.consumer_info(self._stream, self._consumer)
 
     class PullSubscription:
         """
@@ -570,10 +567,7 @@ class JetStream:
             """
             consumer_info gets the current info of the consumer from this subscription.
             """
-            info = await self._js._jsm.consumer_info(
-                self._stream, self._consumer
-            )
-            return info
+            return await self._js._jsm.consumer_info(self._stream, self._consumer)
 
         async def fetch(self, batch: int = 1, timeout: int = 5):
             """
@@ -616,8 +610,7 @@ class JetStream:
             if batch == 1:
                 msg = await self._fetch_one(batch, expires, timeout)
                 return [msg]
-            msgs = await self._fetch_n(batch, expires, timeout)
-            return msgs
+            return await self._fetch_n(batch, expires, timeout)
 
         async def _fetch_one(self, batch: int, expires: int, timeout: int):
             queue = self._sub._pending_queue
@@ -637,9 +630,7 @@ class JetStream:
                     pass
 
             # Make lingering request with expiration and wait for response.
-            next_req = {}
-            next_req['batch'] = 1
-            next_req['expires'] = int(expires)
+            next_req = {'batch': 1, 'expires': expires}
             await self._nc.publish(
                 self._nms,
                 json.dumps(next_req).encode(),
@@ -679,10 +670,7 @@ class JetStream:
 
             # First request: Use no_wait to synchronously get as many available
             # based on the batch size until server sends 'No Messages' status msg.
-            next_req = {}
-            next_req['batch'] = needed
-            next_req['expires'] = int(expires)
-            next_req['no_wait'] = True
+            next_req = {'batch': needed, 'expires': expires, 'no_wait': True}
             await self._nc.publish(
                 self._nms,
                 json.dumps(next_req).encode(),
@@ -699,7 +687,7 @@ class JetStream:
                 needed -= 1
 
                 try:
-                    for i in range(0, needed):
+                    for _ in range(needed):
                         deadline = JetStream._time_until(timeout, start_time)
                         msg = await self._sub.next_msg(timeout=deadline)
                         status = JetStream.is_status_msg(msg)
@@ -723,7 +711,7 @@ class JetStream:
             # are made available and delivered to the client.
             next_req = {}
             next_req['batch'] = needed
-            next_req['expires'] = int(expires)
+            next_req['expires'] = expires
             await self._nc.publish(
                 self._nms,
                 json.dumps(next_req).encode(),
@@ -741,7 +729,7 @@ class JetStream:
                     return msgs
 
                 deadline = JetStream._time_until(timeout, start_time)
-                if len(msgs) == 0:
+                if not msgs:
                     # Not a single processable message has been received so far,
                     # if this timed out then let the error be raised.
                     msg = await self._sub.next_msg(timeout=deadline)
@@ -763,12 +751,12 @@ class JetStream:
                         # or timeout.  This could be due to concurrent uses of fetch
                         # with the same inbox.
                         break
-                    elif len(msgs) == 0:
+                    elif not msgs:
                         raise nats.js.errors.APIError.from_msg(msg)
 
             # Wait for the rest of the messages to be delivered to the internal pending queue.
             try:
-                for i in range(0, needed):
+                for _ in range(needed):
                     deadline = JetStream._time_until(timeout, start_time)
                     if deadline < 0:
                         return msgs

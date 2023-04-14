@@ -215,13 +215,13 @@ class Msg:
             self.stream = stream
             self.consumer = consumer
 
-        def _get_metadata_fields(reply):
-            if reply is None or reply == '':
+        def _get_metadata_fields(self):
+            if self is None or self == '':
                 raise NotJSMessageError
-            tokens = reply.split('.')
+            tokens = self.split('.')
             if len(tokens) != Msg.Ack.V1TokenCount or \
-                   tokens[0] != Msg.Ack.Prefix0 or \
-                   tokens[1] != Msg.Ack.Prefix1:
+                           tokens[0] != Msg.Ack.Prefix0 or \
+                           tokens[1] != Msg.Ack.Prefix1:
                 raise NotJSMessageError
             return tokens
 

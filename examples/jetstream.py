@@ -11,7 +11,7 @@ async def main():
     # Persist messages on 'foo's subject.
     await js.add_stream(name="sample-stream", subjects=["foo"])
 
-    for i in range(0, 10):
+    for i in range(10):
         ack = await js.publish("foo", f"hello world: {i}".encode())
         print(ack)
 
@@ -19,7 +19,7 @@ async def main():
     psub = await js.pull_subscribe("foo", "psub")
 
     # Fetch and ack messagess from consumer.
-    for i in range(0, 10):    
+    for i in range(10):    
         msgs = await psub.fetch(1)
         for msg in msgs:
             print(msg)
@@ -42,10 +42,11 @@ async def main():
     async def qsub_b(msg):
         print("QSUB B:", msg)
         await msg.ack()
+
     await js.subscribe("foo", "workers", cb=qsub_a)
     await js.subscribe("foo", "workers", cb=qsub_b)
 
-    for i in range(0, 10):
+    for i in range(10):
         ack = await js.publish("foo", f"hello world: {i}".encode())
         print("\t", ack)
 

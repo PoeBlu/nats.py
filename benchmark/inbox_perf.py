@@ -6,7 +6,7 @@ INBOX_PREFIX = bytearray(b'_INBOX.')
 
 def gen_inboxes_nuid(n):
     nuid = NUID()
-    for i in range(0, n):
+    for _ in range(n):
         inbox = INBOX_PREFIX[:]
         inbox.extend(nuid.next())
         inbox.extend(b'.')

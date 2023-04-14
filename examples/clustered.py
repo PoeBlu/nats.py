@@ -63,7 +63,7 @@ async def run():
         start_time = datetime.now()
         print(f"Sending {max_messages} messages to NATS...")
 
-        for i in range(0, max_messages):
+        for i in range(max_messages):
             try:
                 await nc.publish(f"help.{i}", b'A')
                 await nc.flush(0.500)

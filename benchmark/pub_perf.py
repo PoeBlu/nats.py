@@ -33,62 +33,61 @@ def show_usage_and_die():
     sys.exit(1)
 
 async def main(loop):
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--count', default=DEFAULT_NUM_MSGS, type=int)
-    parser.add_argument('-s', '--size', default=DEFAULT_MSG_SIZE, type=int)
-    parser.add_argument('-S', '--subject', default='test')
-    parser.add_argument('-b', '--batch', default=DEFAULT_BATCH_SIZE, type=int)
-    parser.add_argument('--servers', default=[], action='append')
-    args = parser.parse_args()
+  parser = argparse.ArgumentParser()
+  parser.add_argument('-n', '--count', default=DEFAULT_NUM_MSGS, type=int)
+  parser.add_argument('-s', '--size', default=DEFAULT_MSG_SIZE, type=int)
+  parser.add_argument('-S', '--subject', default='test')
+  parser.add_argument('-b', '--batch', default=DEFAULT_BATCH_SIZE, type=int)
+  parser.add_argument('--servers', default=[], action='append')
+  args = parser.parse_args()
 
-    data = []
-    for i in range(0, args.size):
-        s = "%01x" % randint(0, 15)
-        data.append(s.encode())
-    payload = b''.join(data)
+  data = []
+  for _ in range(args.size):
+    s = "%01x" % randint(0, 15)
+    data.append(s.encode())
+  payload = b''.join(data)
 
-    servers = args.servers
-    if len(args.servers) < 1:
-        servers = ["nats://127.0.0.1:4222"]
+  servers = args.servers
+  if len(args.servers) < 1:
+      servers = ["nats://127.0.0.1:4222"]
 
-    # Make sure we're connected to a server first..
-    try:
-        nc = await nats.connect(servers)
-    except Exception as e:
-        sys.stderr.write(f"ERROR: {e}")
-        show_usage_and_die()
+  # Make sure we're connected to a server first..
+  try:
+      nc = await nats.connect(servers)
+  except Exception as e:
+      sys.stderr.write(f"ERROR: {e}")
+      show_usage_and_die()
 
-    # Start the benchmark
-    start = time.time()
-    to_send = args.count
+  # Start the benchmark
+  start = time.time()
+  to_send = args.count
 
-    print("Sending {} messages of size {} bytes on [{}]".format(
-        args.count, args.size, args.subject))
-    while to_send > 0:
-        for i in range(0, args.batch):
-            to_send -= 1
-            await nc.publish(args.subject, payload)
-            if (to_send % HASH_MODULO) == 0:
-                sys.stdout.write("#")
-                sys.stdout.flush()
-            if to_send == 0:
-                break
+  print(
+      f"Sending {args.count} messages of size {args.size} bytes on [{args.subject}]"
+  )
+  while to_send > 0:
+    for _ in range(args.batch):
+      to_send -= 1
+      await nc.publish(args.subject, payload)
+      if (to_send % HASH_MODULO) == 0:
+          sys.stdout.write("#")
+          sys.stdout.flush()
+      if to_send == 0:
+          break
 
-        # Minimal pause in between batches sent to server
-        await asyncio.sleep(0.00001)
+    # Minimal pause in between batches sent to server
+    await asyncio.sleep(0.00001)
 
-    # Additional roundtrip with server to try to ensure everything has been sent already.
-    try:
-        await nc.flush(DEFAULT_FLUSH_TIMEOUT)
-    except nats.aio.errors.ErrTimeout:
-        print(f"Server flush timeout after {DEFAULT_FLUSH_TIMEOUT}")
+  # Additional roundtrip with server to try to ensure everything has been sent already.
+  try:
+      await nc.flush(DEFAULT_FLUSH_TIMEOUT)
+  except nats.aio.errors.ErrTimeout:
+      print(f"Server flush timeout after {DEFAULT_FLUSH_TIMEOUT}")
 
-    elapsed = time.time() - start
-    mbytes = "%.1f" % (((args.size * args.count)/elapsed) / (1024*1024))
-    print("\nTest completed : {} msgs/sec ({}) MB/sec".format(
-        args.count/elapsed,
-        mbytes))
-    await nc.close()
+  elapsed = time.time() - start
+  mbytes = "%.1f" % (((args.size * args.count)/elapsed) / (1024*1024))
+  print(f"\nTest completed : {args.count / elapsed} msgs/sec ({mbytes}) MB/sec")
+  await nc.close()
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()

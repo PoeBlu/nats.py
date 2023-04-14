@@ -189,7 +189,7 @@ class ClientTest(SingleServerTestCase):
     async def test_publish(self):
         nc = NATS()
         await nc.connect()
-        for i in range(0, 100):
+        for i in range(100):
             await nc.publish(f"hello.{i}", b'A')
 
         with self.assertRaises(nats.errors.BadSubjectError):
@@ -213,7 +213,7 @@ class ClientTest(SingleServerTestCase):
     async def test_flush(self):
         nc = NATS()
         await nc.connect()
-        for i in range(0, 10):
+        for i in range(10):
             await nc.publish(f"flush.{i}", b'AA')
             await nc.flush()
         self.assertEqual(10, nc.stats['out_msgs'])
@@ -321,7 +321,7 @@ class ClientTest(SingleServerTestCase):
         sub2 = await nc2.subscribe("foo", cb=subscription_handler2)
 
         payload = b'hello world'
-        for i in range(0, 10):
+        for i in range(10):
             await nc.publish("foo", payload)
             await asyncio.sleep(0)
         await nc.flush()
@@ -384,7 +384,7 @@ class ClientTest(SingleServerTestCase):
         await nc.connect()
         await nc.subscribe("tests.>", cb=subscription_handler)
 
-        for i in range(0, 5):
+        for i in range(5):
             await nc.publish(f"tests.{i}", b'bar')
 
         # Wait a bit for messages to be received.
@@ -410,7 +410,7 @@ class ClientTest(SingleServerTestCase):
 
         asyncio.ensure_future(iterator_func(sub))
 
-        for i in range(0, 5):
+        for i in range(5):
             await nc.publish(f"tests.{i}", b'bar')
 
         await asyncio.sleep(0)
@@ -434,7 +434,7 @@ class ClientTest(SingleServerTestCase):
         await sub.unsubscribe(limit=2)
         await nc.flush()
 
-        for i in range(0, 5):
+        for i in range(5):
             await nc.publish(f"tests.{i}", b'bar')
 
         # A couple of messages would be received then this will unblock.
@@ -457,7 +457,7 @@ class ClientTest(SingleServerTestCase):
         await sub.unsubscribe(limit=2)
         await nc.flush()
 
-        for i in range(0, 5):
+        for i in range(5):
             await nc.publish(f"tests.{i}", b'bar')
 
         # A couple of messages would be received then this will unblock.
@@ -494,7 +494,7 @@ class ClientTest(SingleServerTestCase):
             async for msg in stream():
                 return msg
 
-        for i in range(0, 2):
+        for i in range(2):
             await nc.publish(f"tests.{i}", b'bar')
 
         # A couple of messages would be received then this will unblock.
@@ -510,9 +510,9 @@ class ClientTest(SingleServerTestCase):
 
         # FIXME: This message would be lost because cannot
         # reuse the future from the iterator that timed out.
-        await nc.publish(f"tests.2", b'bar')
+        await nc.publish("tests.2", b'bar')
 
-        await nc.publish(f"tests.3", b'bar')
+        await nc.publish("tests.3", b'bar')
         await nc.flush()
         msg = await next_msg()
         self.assertEqual("tests.3", msg.subject)
@@ -529,7 +529,7 @@ class ClientTest(SingleServerTestCase):
         sub = await nc.subscribe('tests.>')
         await nc.flush()
 
-        for i in range(0, 2):
+        for i in range(2):
             await nc.publish(f"tests.{i}", b'bar')
 
         # A couple of messages would be received then this will unblock.
@@ -544,8 +544,8 @@ class ClientTest(SingleServerTestCase):
             await sub.next_msg(timeout=0.5)
 
         # Send again a couple of messages.
-        await nc.publish(f"tests.2", b'bar')
-        await nc.publish(f"tests.3", b'bar')
+        await nc.publish("tests.2", b'bar')
+        await nc.publish("tests.3", b'bar')
         await nc.flush()
         msg = await sub.next_msg()
         self.assertEqual("tests.2", msg.subject)
@@ -738,7 +738,7 @@ class ClientTest(SingleServerTestCase):
         nc = NATS()
         await nc.connect()
         largest_pending_data_size = 0
-        for i in range(0, 100):
+        for _ in range(100):
             await nc.publish("example", b'A' * 100000)
             if nc.pending_data_size > 0:
                 largest_pending_data_size = nc.pending_data_size
@@ -842,7 +842,7 @@ class ClientTest(SingleServerTestCase):
         await nc2.subscribe("example.*", cb=receiver_cb)
         await nc2.flush()
 
-        for i in range(0, 200):
+        for i in range(200):
             await nc.publish(f"example.{i}", b'A' * 20)
 
         # All pending messages should have been emitted to the server
@@ -977,7 +977,7 @@ class ClientReconnectTest(MultiServerAuthTestCase):
         await asyncio.get_running_loop().run_in_executor(
             None, self.server_pool[1].stop
         )
-        for i in range(0, 10):
+        for i in range(10):
             await asyncio.sleep(0)
             await asyncio.sleep(0.2)
             await asyncio.sleep(0)
@@ -991,7 +991,7 @@ class ClientReconnectTest(MultiServerAuthTestCase):
         await asyncio.get_running_loop().run_in_executor(
             None, self.server_pool[1].start
         )
-        for i in range(0, 10):
+        for i in range(10):
             await asyncio.sleep(0)
             await asyncio.sleep(0.2)
             await asyncio.sleep(0)
@@ -1057,7 +1057,7 @@ class ClientReconnectTest(MultiServerAuthTestCase):
         await asyncio.get_running_loop().run_in_executor(
             None, self.server_pool[0].stop
         )
-        for i in range(0, 10):
+        for i in range(10):
             await asyncio.sleep(0)
             await asyncio.sleep(0.1)
             await asyncio.sleep(0)
@@ -1072,7 +1072,7 @@ class ClientReconnectTest(MultiServerAuthTestCase):
         await asyncio.get_running_loop().run_in_executor(
             None, self.server_pool[1].start
         )
-        for i in range(0, 10):
+        for i in range(10):
             await asyncio.sleep(0)
             await asyncio.sleep(0.1)
             await asyncio.sleep(0)
@@ -1081,7 +1081,7 @@ class ClientReconnectTest(MultiServerAuthTestCase):
         await asyncio.get_running_loop().run_in_executor(
             None, self.server_pool[1].stop
         )
-        for i in range(0, 10):
+        for i in range(10):
             await asyncio.sleep(0)
             await asyncio.sleep(0.1)
             await asyncio.sleep(0)
@@ -1186,25 +1186,23 @@ class ClientReconnectTest(MultiServerAuthTestCase):
 
         await nc.subscribe("example.*", cb=cb)
 
-        for i in range(0, 200):
+        for i in range(200):
             await nc.publish(f"example.{i}", b'A' * 20)
             if nc.pending_data_size > 0:
                 largest_pending_data_size = nc.pending_data_size
-            if nc.pending_data_size > 100:
-                # Stop the first server and connect to another one asap.
-                if not done_once:
-                    await nc.flush(2)
-                    post_flush_pending_data = nc.pending_data_size
-                    await asyncio.get_running_loop().run_in_executor(
-                        None, self.server_pool[0].stop
-                    )
-                    done_once = True
+            if nc.pending_data_size > 100 and not done_once:
+                await nc.flush(2)
+                post_flush_pending_data = nc.pending_data_size
+                await asyncio.get_running_loop().run_in_executor(
+                    None, self.server_pool[0].stop
+                )
+                done_once = True
 
         self.assertTrue(largest_pending_data_size > 0)
         self.assertTrue(post_flush_pending_data == 0)
 
         # Confirm we have reconnected eventually
-        for i in range(0, 10):
+        for i in range(10):
             await asyncio.sleep(0)
             await asyncio.sleep(0.2)
             await asyncio.sleep(0)
@@ -1263,25 +1261,23 @@ class ClientReconnectTest(MultiServerAuthTestCase):
 
         await nc.subscribe("example.*", cb=cb)
 
-        for i in range(0, 500):
+        for i in range(500):
             await nc.publish(f"example.{i}", b'A' * 20)
             if nc.pending_data_size > 0:
                 largest_pending_data_size = nc.pending_data_size
-            if nc.pending_data_size > 100:
-                # Stop the first server and connect to another one asap.
-                if not done_once:
-                    await nc.flush(2)
-                    post_flush_pending_data = nc.pending_data_size
-                    await asyncio.get_running_loop().run_in_executor(
-                        None, self.server_pool[0].stop
-                    )
-                    done_once = True
+            if nc.pending_data_size > 100 and not done_once:
+                await nc.flush(2)
+                post_flush_pending_data = nc.pending_data_size
+                await asyncio.get_running_loop().run_in_executor(
+                    None, self.server_pool[0].stop
+                )
+                done_once = True
 
         self.assertTrue(largest_pending_data_size > 0)
         self.assertTrue(post_flush_pending_data == 0)
 
         # Confirm we have reconnected eventually
-        for i in range(0, 10):
+        for i in range(10):
             await asyncio.sleep(0)
             await asyncio.sleep(0.2)
             await asyncio.sleep(0)
@@ -1921,7 +1917,7 @@ class ConnectFailuresTest(SingleServerTestCase):
         # Should have reconnected to healthy server.
         self.assertTrue(nc.is_connected)
 
-        for i in range(0, 10):
+        for i in range(10):
             await nc.publish("foo", b'ok ok')
         await nc.flush()
         await nc.close()
@@ -1969,7 +1965,7 @@ class ClientDrainTest(SingleServerTestCase):
 
         sub = await nc.subscribe("foo", cb=handler)
 
-        for i in range(0, 200):
+        for i in range(200):
             await nc.publish("foo", b'hi')
 
             # Relinquish control so that messages are processed.
@@ -1983,7 +1979,7 @@ class ClientDrainTest(SingleServerTestCase):
         drain_task = sub.drain()
         await asyncio.wait_for(drain_task, 1)
 
-        for i in range(0, 200):
+        for i in range(200):
             await nc.publish("foo", b'hi')
 
             # Relinquish control so that messages are processed.
@@ -2053,7 +2049,7 @@ class ClientDrainTest(SingleServerTestCase):
             msgs.append(msg)
 
         await nc2.subscribe("my-replies.*", cb=replies)
-        for i in range(0, 201):
+        for i in range(201):
             await nc2.publish(
                 "foo", b'help', reply=f"my-replies.{nc._nuid.next().decode()}"
             )
@@ -2149,7 +2145,7 @@ class ClientDrainTest(SingleServerTestCase):
             msgs.append(msg)
 
         await nc2.subscribe("my-replies.*", cb=replies)
-        for i in range(0, 201):
+        for i in range(201):
             await nc2.publish(
                 "foo", b'help', reply=f"my-replies.{nc._nuid.next().decode()}"
             )

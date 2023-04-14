@@ -59,9 +59,7 @@ class NUID:
         return prefix
 
     def randomize_prefix(self):
-        random_bytes = (
-            self._srand.getrandbits(8) for i in range(PREFIX_LENGTH)
-        )
+        random_bytes = (self._srand.getrandbits(8) for _ in range(PREFIX_LENGTH))
         self._prefix = bytearray(DIGITS[c % BASE] for c in random_bytes)
 
     def reset_sequential(self):

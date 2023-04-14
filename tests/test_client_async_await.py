@@ -25,7 +25,7 @@ class ClientAsyncAwaitTest(SingleServerTestCase):
         sub = await nc.subscribe("tests.>", cb=subscription_handler)
         self.assertIsNotNone(sub)
 
-        for i in range(0, 5):
+        for i in range(5):
             await nc.publish(f"tests.{i}", b'bar')
 
         # Wait a bit for messages to be received.

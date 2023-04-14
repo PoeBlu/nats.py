@@ -33,75 +33,76 @@ def show_usage_and_die():
     sys.exit(1)
 
 async def main(loop):
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--count', default=DEFAULT_NUM_MSGS, type=int)
-    parser.add_argument('-s', '--size', default=DEFAULT_MSG_SIZE, type=int)
-    parser.add_argument('-S', '--subject', default='test')
-    parser.add_argument('-b', '--batch', default=DEFAULT_BATCH_SIZE, type=int)
-    parser.add_argument('--servers', default=[], action='append')
-    args = parser.parse_args()
+  parser = argparse.ArgumentParser()
+  parser.add_argument('-n', '--count', default=DEFAULT_NUM_MSGS, type=int)
+  parser.add_argument('-s', '--size', default=DEFAULT_MSG_SIZE, type=int)
+  parser.add_argument('-S', '--subject', default='test')
+  parser.add_argument('-b', '--batch', default=DEFAULT_BATCH_SIZE, type=int)
+  parser.add_argument('--servers', default=[], action='append')
+  args = parser.parse_args()
 
-    data = []
-    for i in range(0, args.size):
-        s = "%01x" % randint(0, 15)
-        data.append(s.encode())
-    payload = b''.join(data)
+  data = []
+  for i in range(args.size):
+    s = "%01x" % randint(0, 15)
+    data.append(s.encode())
+  payload = b''.join(data)
 
-    servers = args.servers
-    if len(args.servers) < 1:
-        servers = ["nats://127.0.0.1:4222"]
+  servers = args.servers
+  if len(args.servers) < 1:
+      servers = ["nats://127.0.0.1:4222"]
 
-    # Make sure we're connected to a server first...
-    try:
-        nc = await nats.connect(servers)
-    except Exception as e:
-        sys.stderr.write(f"ERROR: {e}")
-        show_usage_and_die()
+  # Make sure we're connected to a server first...
+  try:
+      nc = await nats.connect(servers)
+  except Exception as e:
+      sys.stderr.write(f"ERROR: {e}")
+      show_usage_and_die()
 
-    received = 0
-    async def handler(msg):
-        nonlocal received
-        received += 1
-        if (received % HASH_MODULO) == 0:
-            sys.stdout.write("*")
-            sys.stdout.flush()
-    await nc.subscribe(args.subject, cb=handler)
+  received = 0
+  async def handler(msg):
+      nonlocal received
+      received += 1
+      if (received % HASH_MODULO) == 0:
+          sys.stdout.write("*")
+          sys.stdout.flush()
 
-    # Start the benchmark
-    start = time.time()
-    to_send = args.count
+  await nc.subscribe(args.subject, cb=handler)
 
-    print("Sending {} messages of size {} bytes on [{}]".format(
-        args.count, args.size, args.subject))
-    while to_send > 0:
-        for i in range(0, args.batch):
-            to_send -= 1
-            await nc.publish(args.subject, payload)
-            if (to_send % HASH_MODULO) == 0:
-                sys.stdout.write("#")
-                sys.stdout.flush()
-            if to_send == 0:
-                break
+  # Start the benchmark
+  start = time.time()
+  to_send = args.count
 
-        # Minimal pause in between batches of commands sent to server
-        await asyncio.sleep(0.00001)
+  print("Sending {} messages of size {} bytes on [{}]".format(
+      args.count, args.size, args.subject))
+  while to_send > 0:
+    for i in range(args.batch):
+      to_send -= 1
+      await nc.publish(args.subject, payload)
+      if (to_send % HASH_MODULO) == 0:
+          sys.stdout.write("#")
+          sys.stdout.flush()
+      if to_send == 0:
+          break
 
-    # Additional roundtrip with server to ensure everything has been
-    # processed by the server already.
-    try:
-        while received < args.count:
-            await nc.flush(DEFAULT_FLUSH_TIMEOUT)
-    except nats.aio.errors.ErrTimeout:
-        print(f"Server flush timeout after {DEFAULT_FLUSH_TIMEOUT}")
+    # Minimal pause in between batches of commands sent to server
+    await asyncio.sleep(0.00001)
 
-    elapsed = time.time() - start
-    mbytes = "%.1f" % (((args.size * args.count)/elapsed) / (1024*1024))
-    print("\nTest completed : {} msgs/sec sent ({}) MB/sec".format(
-        args.count/elapsed,
-        mbytes))
+  # Additional roundtrip with server to ensure everything has been
+  # processed by the server already.
+  try:
+      while received < args.count:
+          await nc.flush(DEFAULT_FLUSH_TIMEOUT)
+  except nats.aio.errors.ErrTimeout:
+      print(f"Server flush timeout after {DEFAULT_FLUSH_TIMEOUT}")
 
-    print("Received {} messages ({} msgs/sec)".format(received, received/elapsed))
-    await nc.close()
+  elapsed = time.time() - start
+  mbytes = "%.1f" % (((args.size * args.count)/elapsed) / (1024*1024))
+  print("\nTest completed : {} msgs/sec sent ({}) MB/sec".format(
+      args.count/elapsed,
+      mbytes))
+
+  print("Received {} messages ({} msgs/sec)".format(received, received/elapsed))
+  await nc.close()
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()

@@ -91,16 +91,12 @@ class Parser:
         self.buf.extend(data)
         while self.buf:
             if self.state == AWAITING_CONTROL_LINE:
-                msg = MSG_RE.match(self.buf)
-                if msg:
+                if msg := MSG_RE.match(self.buf):
                     try:
                         subject, sid, _, reply, needed_bytes = msg.groups()
                         self.msg_arg["subject"] = subject
                         self.msg_arg["sid"] = int(sid)
-                        if reply:
-                            self.msg_arg["reply"] = reply
-                        else:
-                            self.msg_arg["reply"] = b''
+                        self.msg_arg["reply"] = reply if reply else b''
                         self.needed = int(needed_bytes)
                         del self.buf[:msg.end()]
                         self.state = AWAITING_MSG_PAYLOAD
@@ -108,17 +104,13 @@ class Parser:
                     except:
                         raise ProtocolError("nats: malformed MSG")
 
-                msg = HMSG_RE.match(self.buf)
-                if msg:
+                if msg := HMSG_RE.match(self.buf):
                     try:
                         subject, sid, _, reply, header_size, needed_bytes = msg.groups(
                         )
                         self.msg_arg["subject"] = subject
                         self.msg_arg["sid"] = int(sid)
-                        if reply:
-                            self.msg_arg["reply"] = reply
-                        else:
-                            self.msg_arg["reply"] = b''
+                        self.msg_arg["reply"] = reply if reply else b''
                         self.needed = int(needed_bytes)
                         self.header_needed = int(header_size)
                         del self.buf[:msg.end()]
@@ -127,34 +119,29 @@ class Parser:
                     except:
                         raise ProtocolError("nats: malformed MSG")
 
-                ok = OK_RE.match(self.buf)
-                if ok:
+                if ok := OK_RE.match(self.buf):
                     # Do nothing and just skip.
                     del self.buf[:ok.end()]
                     continue
 
-                err = ERR_RE.match(self.buf)
-                if err:
+                if err := ERR_RE.match(self.buf):
                     err_msg = err.groups()
                     emsg = err_msg[0].decode().lower()
                     await self.nc._process_err(emsg)
                     del self.buf[:err.end()]
                     continue
 
-                ping = PING_RE.match(self.buf)
-                if ping:
+                if ping := PING_RE.match(self.buf):
                     del self.buf[:ping.end()]
                     await self.nc._process_ping()
                     continue
 
-                pong = PONG_RE.match(self.buf)
-                if pong:
+                if pong := PONG_RE.match(self.buf):
                     del self.buf[:pong.end()]
                     await self.nc._process_pong()
                     continue
 
-                info = INFO_RE.match(self.buf)
-                if info:
+                if info := INFO_RE.match(self.buf):
                     info_line = info.groups()[0]
                     srv_info = json.loads(info_line.decode())
                     self.nc._process_info(srv_info)
@@ -175,33 +162,32 @@ class Parser:
                     break
 
             elif self.state == AWAITING_MSG_PAYLOAD:
-                if len(self.buf) >= self.needed + CRLF_SIZE:
-                    sid = None
-                    hdr = None
-                    subject = self.msg_arg["subject"]
-                    sid = self.msg_arg["sid"]
-                    reply = self.msg_arg["reply"]
-
-                    # Consume msg payload from buffer and set next parser state.
-                    if self.header_needed > 0:
-                        hbuf = bytes(self.buf[:self.header_needed])
-                        payload = bytes(
-                            self.buf[self.header_needed:self.needed]
-                        )
-                        hdr = hbuf
-                        del self.buf[:self.needed + CRLF_SIZE]
-                        self.header_needed = 0
-                    else:
-                        payload = bytes(self.buf[:self.needed])
-                        del self.buf[:self.needed + CRLF_SIZE]
-
-                    self.state = AWAITING_CONTROL_LINE
-                    await self.nc._process_msg(
-                        sid, subject, reply, payload, hdr
-                    )
-                else:
+                if len(self.buf) < self.needed + CRLF_SIZE:
                     # Wait until we have enough bytes in buffer.
                     break
+                sid = None
+                hdr = None
+                subject = self.msg_arg["subject"]
+                sid = self.msg_arg["sid"]
+                reply = self.msg_arg["reply"]
+
+                # Consume msg payload from buffer and set next parser state.
+                if self.header_needed > 0:
+                    hbuf = bytes(self.buf[:self.header_needed])
+                    payload = bytes(
+                        self.buf[self.header_needed:self.needed]
+                    )
+                    hdr = hbuf
+                    del self.buf[:self.needed + CRLF_SIZE]
+                    self.header_needed = 0
+                else:
+                    payload = bytes(self.buf[:self.needed])
+                    del self.buf[:self.needed + CRLF_SIZE]
+
+                self.state = AWAITING_CONTROL_LINE
+                await self.nc._process_msg(
+                    sid, subject, reply, payload, hdr
+                )
 
 
 class ErrProtocol(ProtocolError):

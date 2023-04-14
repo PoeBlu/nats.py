@@ -127,7 +127,7 @@ class PullSubscribeTest(SingleJetStreamServerTestCase):
         await msg.ack()
         self.assertEqual(msg.data, b'a1:1')
 
-        for i in range(2, 10):
+        for _ in range(2, 10):
             msgs = await sub.fetch(1)
             msg = msgs[0]
             await msg.ack()
@@ -156,7 +156,7 @@ class PullSubscribeTest(SingleJetStreamServerTestCase):
 
         sinfo = await js.add_stream(name="TEST1", subjects=["foo.1", "bar"])
 
-        ack = await js.publish("foo.1", f'Hello from NATS!'.encode())
+        ack = await js.publish("foo.1", 'Hello from NATS!'.encode())
         self.assertEqual(ack.stream, "TEST1")
         self.assertEqual(ack.seq, 1)
 
@@ -176,7 +176,7 @@ class PullSubscribeTest(SingleJetStreamServerTestCase):
         with self.assertRaises(asyncio.TimeoutError):
             await sub.fetch(timeout=1)
 
-        for i in range(0, 10):
+        for i in range(10):
             await js.publish(
                 "foo.1", f"i:{i}".encode(), headers={'hello': 'world'}
             )
@@ -249,7 +249,7 @@ class PullSubscribeTest(SingleJetStreamServerTestCase):
 
         sinfo = await js.add_stream(name="TESTN", subjects=["a", "b", "c"])
 
-        for i in range(0, 10):
+        for i in range(10):
             await js.publish("a", f'i:{i}'.encode())
 
         sub = await js.pull_subscribe(
@@ -315,9 +315,7 @@ class PullSubscribeTest(SingleJetStreamServerTestCase):
         self.assertEqual(info.num_pending, 0)
         self.assertEqual(info.num_ack_pending, 1)
 
-        inflight = []
-        inflight.append(msg)
-
+        inflight = [msg]
         # +1 message
         #  1 extra from before but request has expired so does not count.
         # +1 ack pending since previous message not acked.
@@ -365,7 +363,7 @@ class PullSubscribeTest(SingleJetStreamServerTestCase):
         self.assertEqual(info.ack_floor.consumer_seq, 14)
 
         # No messages at this point.
-        for i in range(0, 5):
+        for _ in range(5):
             with self.assertRaises(TimeoutError):
                 msg = await sub.fetch(1, timeout=0.5)
 
@@ -413,17 +411,16 @@ class PullSubscribeTest(SingleJetStreamServerTestCase):
         for e in results:
             if isinstance(e, asyncio.TimeoutError):
                 continue
-            else:
-                self.assertIsInstance(e, APIError)
-                err = e
-                break
+            self.assertIsInstance(e, APIError)
+            err = e
+            break
 
         # Should get at least one Request Timeout error.
         self.assertEqual(e.code, 408)
         info = await js.consumer_info("TEST3", "example")
         self.assertEqual(info.num_waiting, 3)
 
-        for i in range(0, 10):
+        for i in range(10):
             await js.publish("max", b'foo')
 
         async def pub():
@@ -445,14 +442,13 @@ class PullSubscribeTest(SingleJetStreamServerTestCase):
                 return_exceptions=True,
             )
             for e in future:
-                if isinstance(e, asyncio.TimeoutError) or isinstance(e,
-                                                                     APIError):
+                if isinstance(e, (asyncio.TimeoutError, APIError)):
                     continue
                 else:
                     m = e[0].metadata
 
         tasks = []
-        for i in range(0, 100):
+        for i in range(100):
             task = asyncio.create_task(cb())
             tasks.append(task)
             await asyncio.sleep(0)
@@ -493,10 +489,9 @@ class PullSubscribeTest(SingleJetStreamServerTestCase):
         for e in results:
             if isinstance(e, asyncio.TimeoutError):
                 continue
-            else:
-                self.assertIsInstance(e, APIError)
-                err = e
-                break
+            self.assertIsInstance(e, APIError)
+            err = e
+            break
 
         # Should get at least one Request Timeout error.
         self.assertEqual(err.code, 408)
@@ -556,29 +551,17 @@ class PullSubscribeTest(SingleJetStreamServerTestCase):
                         self.assertTrue(msg.header is None)
             except Exception as e:
                 errors.append(e)
-                pass
         for e in errors:
             if isinstance(e, asyncio.TimeoutError):
                 continue
-            else:
-                # Only 408 errors should ever bubble up.
-                self.assertIsInstance(e, APIError)
-                self.assertEqual(e.code, 408)
+            # Only 408 errors should ever bubble up.
+            self.assertIsInstance(e, APIError)
+            self.assertEqual(e.code, 408)
         task.cancel()
 
         await nc.close()
 
         return
-
-        # Ensure that all published events that made it
-        # were delivered.
-        print(m)
-        for i in range(0, len(m)):
-            res = m.get(i)
-            print(res.data)
-            self.assertEqual(int(res.data.decode()), i)
-
-        await nc.close()
 
 
 class JSMTest(SingleJetStreamServerTestCase):
@@ -872,7 +855,7 @@ class AckPolicyTest(SingleJetStreamServerTestCase):
 
         js = nc.jetstream()
         sinfo = await js.add_stream(name="TESTACKS", subjects=["test"])
-        for i in range(0, 10):
+        for i in range(10):
             await js.publish("test", f'{i}'.encode())
 
         # Pull Subscriber
@@ -920,7 +903,7 @@ class AckPolicyTest(SingleJetStreamServerTestCase):
 
         js = nc.jetstream()
         sinfo = await js.add_stream(name="TESTACKS", subjects=["test"])
-        for i in range(0, 10):
+        for i in range(10):
             await js.publish("test", f'{i}'.encode())
 
         future = asyncio.Future()
@@ -994,10 +977,7 @@ class OrderedConsumerTest(SingleJetStreamServerTestCase):
             chunksize = 256
             while i < mlen:
                 chunk = None
-                if mlen - i <= chunksize:
-                    chunk = msg[i:]
-                else:
-                    chunk = msg[i:i + chunksize]
+                chunk = msg[i:] if mlen - i <= chunksize else msg[i:i + chunksize]
                 i += chunksize
                 task = asyncio.create_task(js.publish(subject, chunk))
                 tasks.append(task)
@@ -1006,7 +986,7 @@ class OrderedConsumerTest(SingleJetStreamServerTestCase):
         await asyncio.wait_for(task, timeout=1)
         await asyncio.gather(*tasks)
 
-        for i in range(0, 5):
+        for i in range(5):
             info = await sub.consumer_info()
             await asyncio.sleep(0.5)
 
@@ -1051,10 +1031,7 @@ class OrderedConsumerTest(SingleJetStreamServerTestCase):
             chunksize = 1024
             while i < mlen:
                 chunk = None
-                if mlen - i <= chunksize:
-                    chunk = msg[i:]
-                else:
-                    chunk = msg[i:i + chunksize]
+                chunk = msg[i:] if mlen - i <= chunksize else msg[i:i + chunksize]
                 i += chunksize
                 task = asyncio.create_task(
                     js.publish(subject, chunk, headers={'data': "true"})
@@ -1072,7 +1049,7 @@ class OrderedConsumerTest(SingleJetStreamServerTestCase):
             received_payload.extend(msg.data)
         self.assertEqual(len(received_payload), expected_size)
 
-        for i in range(0, 5):
+        for i in range(5):
             info = await sub.consumer_info()
             if info.num_pending == 0:
                 break
@@ -1130,9 +1107,8 @@ class OrderedConsumerTest(SingleJetStreamServerTestCase):
 
         async def cb(msg):
             msgs.append(msg)
-            if len(msgs) >= 1024:
-                if not future.done():
-                    future.set_result(True)
+            if len(msgs) >= 1024 and not future.done():
+                future.set_result(True)
             await msg.ack()
 
         sub = await js.subscribe(
@@ -1154,10 +1130,7 @@ class OrderedConsumerTest(SingleJetStreamServerTestCase):
             chunksize = 1024
             while i < mlen:
                 chunk = None
-                if mlen - i <= chunksize:
-                    chunk = msg[i:]
-                else:
-                    chunk = msg[i:i + chunksize]
+                chunk = msg[i:] if mlen - i <= chunksize else msg[i:i + chunksize]
                 i += chunksize
                 task = asyncio.create_task(
                     nc2.publish(subject, chunk, headers={'data': "true"})
@@ -1177,8 +1150,6 @@ class OrderedConsumerTest(SingleJetStreamServerTestCase):
             await asyncio.wait_for(future, timeout=5)
         except Exception as err:
             print("Test Error:", err)
-            pass
-
         self.assertEqual(len(msgs), 1024)
 
         received_payload = bytearray(b'')
@@ -1186,7 +1157,7 @@ class OrderedConsumerTest(SingleJetStreamServerTestCase):
             received_payload.extend(msg.data)
         self.assertEqual(len(received_payload), expected_size)
 
-        for i in range(0, 5):
+        for i in range(5):
             info = await sub.consumer_info()
             if info.num_pending == 0:
                 break
@@ -1228,7 +1199,7 @@ class KVTest(SingleJetStreamServerTestCase):
         status = await kv.status()
         self.assertEqual(status.values, 1)
 
-        for i in range(0, 100):
+        for i in range(100):
             await kv.put(f"hello.{i}", b'Hello JS KV!')
 
         status = await kv.status()

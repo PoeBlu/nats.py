@@ -36,17 +36,14 @@ class DummyNatsClient:
         pass
 
 def generate_msg(subject, nbytes, reply=""):
-    msg = []
     protocol_line = "MSG {subject} 1 {reply} {nbytes}\r\n".format(
         subject=subject, reply=reply, nbytes=nbytes).encode()
-    msg.append(protocol_line)
-    msg.append(b'A' * nbytes)
-    msg.append(b'r\n')
+    msg = [protocol_line, b'A' * nbytes, b'r\n']
     return b''.join(msg)
 
 def parse_msgs(max_msgs=1, nbytes=1):
-    buf = b''.join([generate_msg("foo", nbytes) for i in range(0, max_msgs)])
-    print("--- buffer size: {}".format(len(buf)))
+    buf = b''.join([generate_msg("foo", nbytes) for _ in range(max_msgs)])
+    print(f"--- buffer size: {len(buf)}")
     loop = asyncio.get_event_loop()
     ps = Parser(DummyNatsClient())
     loop.run_until_complete(ps.parse(buf))

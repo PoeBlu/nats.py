@@ -123,10 +123,7 @@ class KeyValue:
         get returns the latest value for the key.
         """
         msg = await self._js.get_last_msg(self._stream, f"{self._pre}{key}")
-        data = None
-        if msg.data:
-            data = base64.b64decode(msg.data)
-
+        data = base64.b64decode(msg.data) if msg.data else None
         entry = KeyValue.Entry(
             bucket=self._name,
             key=key,
@@ -137,7 +134,7 @@ class KeyValue:
         # Check headers to see if deleted or purged.
         if msg.headers:
             op = msg.headers.get(KV_OP, None)
-            if op == KV_DEL or op == KV_PURGE:
+            if op in [KV_DEL, KV_PURGE]:
                 raise KeyDeletedError(entry, op)
 
         return entry
@@ -154,8 +151,7 @@ class KeyValue:
         """
         update will update the value iff the latest revision matches.
         """
-        hdrs = {}
-        hdrs[KV_EXPECTED_HDR] = str(last)
+        hdrs = {KV_EXPECTED_HDR: str(last)}
         pa = await self._js.publish(f"{self._pre}{key}", value, headers=hdrs)
         return pa.sequence
 
@@ -163,8 +159,7 @@ class KeyValue:
         """
         delete will place a delete marker and remove all previous revisions.
         """
-        hdrs = {}
-        hdrs[KV_OP] = KV_DEL
+        hdrs = {KV_OP: KV_DEL}
         await self._js.publish(f"{self._pre}{key}", headers=hdrs)
         return True
 
@@ -172,9 +167,7 @@ class KeyValue:
         """
         purge will remove the key and all revisions.
         """
-        hdrs = {}
-        hdrs[KV_OP] = KV_PURGE
-        hdrs[MSG_ROLLUP_HDR] = MSG_ROLLUP_SUBJECT
+        hdrs = {KV_OP: KV_PURGE, MSG_ROLLUP_HDR: MSG_ROLLUP_SUBJECT}
         await self._js.publish(f"{self._pre}{key}", headers=hdrs)
         return True
 
@@ -250,5 +243,4 @@ class KeyValueManager:
         delete_key_value deletes a JetStream KeyValue store by destroying
         the associated stream.
         """
-        result = await self._js.delete_stream(self._stream)
-        return result
+        return await self._js.delete_stream(self._stream)

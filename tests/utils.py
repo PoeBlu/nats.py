@@ -76,45 +76,34 @@ class NATSD:
             "%d" % self.http_port, "-a", "127.0.0.1"
         ]
         if self.user:
-            cmd.append("--user")
-            cmd.append(self.user)
+            cmd.extend(("--user", self.user))
         if self.password:
-            cmd.append("--pass")
-            cmd.append(self.password)
-
+            cmd.extend(("--pass", self.password))
         if self.token:
-            cmd.append("--auth")
-            cmd.append(self.token)
-
+            cmd.extend(("--auth", self.token))
         if self.debug:
             cmd.append("-DV")
 
         if self.with_jetstream:
-            cmd.append("-js")
-            cmd.append(f"-sd={self.store_dir}")
-
+            cmd.extend(("-js", f"-sd={self.store_dir}"))
         if self.tls:
-            cmd.append('--tls')
-            cmd.append('--tlscert')
-            cmd.append(get_config_file('certs/server-cert.pem'))
-            cmd.append('--tlskey')
-            cmd.append(get_config_file('certs/server-key.pem'))
-            cmd.append('--tlsverify')
-            cmd.append('--tlscacert')
+            cmd.extend(('--tls', '--tlscert'))
+            cmd.extend((get_config_file('certs/server-cert.pem'), '--tlskey'))
+            cmd.extend(
+                (
+                    get_config_file('certs/server-key.pem'),
+                    '--tlsverify',
+                    '--tlscacert',
+                )
+            )
             cmd.append(get_config_file('certs/ca.pem'))
 
         if self.cluster_listen is not None:
-            cmd.append('--cluster_listen')
-            cmd.append(self.cluster_listen)
-
+            cmd.extend(('--cluster_listen', self.cluster_listen))
         if len(self.routes) > 0:
-            cmd.append('--routes')
-            cmd.append(','.join(self.routes))
-
+            cmd.extend(('--routes', ','.join(self.routes)))
         if self.config_file is not None:
-            cmd.append("--config")
-            cmd.append(self.config_file)
-
+            cmd.extend(("--config", self.config_file))
         if self.debug:
             self.proc = subprocess.Popen(cmd)
         else:
@@ -142,20 +131,13 @@ class NATSD:
                 % self.port
             )
 
-        if self.debug:
-            if self.proc is None:
-                print(
-                    "[\033[0;31mDEBUG\033[0;0m] Failed terminating server listening on port %d"
-                    % self.port
-                )
+        if self.debug and self.proc is None:
+            print(
+                "[\033[0;31mDEBUG\033[0;0m] Failed terminating server listening on port %d"
+                % self.port
+            )
 
-        if self.proc.returncode is not None:
-            if self.debug:
-                print(
-                    "[\033[0;31mDEBUG\033[0;0m] Server listening on port {port} finished running already with exit {ret}"
-                    .format(port=self.port, ret=self.proc.returncode)
-                )
-        else:
+        if self.proc.returncode is None:
             os.kill(self.proc.pid, signal.SIGKILL)
             self.proc.wait()
             if self.debug:
@@ -163,6 +145,12 @@ class NATSD:
                     "[\033[0;33mDEBUG\033[0;0m] Server listening on %d was stopped."
                     % self.port
                 )
+
+        elif self.debug:
+            print(
+                "[\033[0;31mDEBUG\033[0;0m] Server listening on port {port} finished running already with exit {ret}"
+                .format(port=self.port, ret=self.proc.returncode)
+            )
 
 
 class SingleServerTestCase(unittest.TestCase):
@@ -436,10 +424,7 @@ def start_natsd(natsd: NATSD):
 
     endpoint = f'127.0.0.1:{natsd.http_port}'
     retries = 0
-    while True:
-        if retries > 100:
-            break
-
+    while retries <= 100:
         try:
             httpclient = http.client.HTTPConnection(endpoint, timeout=5)
             httpclient.request('GET', '/varz')

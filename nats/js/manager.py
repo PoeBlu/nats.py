@@ -215,9 +215,7 @@ class JetStreamManager:
             hdrs = base64.b64decode(raw_msg.hdrs)
             raw_headers = hdrs[len(NATS_HDR_LINE):]
             parsed_headers = self._jsm._hdr_parser.parsebytes(raw_headers)
-            headers = {}
-            for k, v in parsed_headers.items():
-                headers[k] = v
+            headers = dict(parsed_headers.items())
             raw_msg.headers = headers
         return raw_msg
 

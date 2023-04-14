@@ -24,7 +24,7 @@ async def main():
 
         sub = await nc.subscribe("discover")
 
-        for i in range(0, 10):
+        for i in range(10):
             await nc.publish("discover", b"hello world")
             await asyncio.sleep(0.1)
 

@@ -52,7 +52,7 @@ async def main():
 
     # Send multiple requests and drain the subscription.
     requests = []
-    for i in range(0, 100):
+    for i in range(100):
         request = nc.request("help", b'help me', 0.5)
         requests.append(request)
 
